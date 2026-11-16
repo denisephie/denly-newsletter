@@ -22,7 +22,7 @@ reply "done <task number>" when you finish something! have a good day ahead~
 
 It's built for **one person**: no accounts, no dashboard, no multi-user anything. It's one Go binary and one SQLite file, and you can tweak everything in a YAML file.
 
-> **Status: work in progress.** Config, the database, the quick commands and the Twilio webhook work today (in `--dry-run`, replies print to the console). The LLM parser, real sending and the scheduler are being built; see [Roadmap](#roadmap).
+> **Status: work in progress.** Config, the database, the quick commands, the Twilio webhook and the Claude parser work today (in `--dry-run`, replies print to the console). Real sending and the scheduler are being built; see [Roadmap](#roadmap).
 
 ---
 
@@ -90,10 +90,16 @@ cp .env.example .env              # fill in later; dry-run works without it
 
 `--dry-run` (or `DRY_RUN=true` in `.env`) prints every outgoing message to the console instead of sending it, so you can try everything without Twilio credits.
 
+With `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` in `.env`, free text works too (this makes a real, tiny API call):
+
+```bash
+./denly --dry-run simulate "tomorrow: gym, call mum, finish report"
+./denly --dry-run simulate "move gym to friday"
+```
+
 Once the remaining phases land, you'll also be able to do:
 
 ```bash
-./denly --dry-run simulate "tomorrow: gym, call mum"   # free text, via Claude
 ./denly --dry-run trigger morning --force     # send the morning message now
 ./denly serve                                 # the real thing: webhook + scheduler
 ```
@@ -118,7 +124,7 @@ Two files, both in the project root:
 | `TWILIO_WHATSAPP_FROM` | yes | defaults to the sandbox number `whatsapp:+14155238886` |
 | `MY_WHATSAPP_NUMBER` | yes | your number, e.g. `whatsapp:+6591234567`. The bot only ever talks to this number. |
 | `ANTHROPIC_API_KEY` | yes | |
-| `ANTHROPIC_MODEL` | yes | any Claude model; a small, fast one is plenty |
+| `ANTHROPIC_MODEL` | yes | any Claude model that supports structured outputs; a small, fast one is plenty (e.g. `claude-haiku-5-5`) |
 | `PUBLIC_BASE_URL` | yes | the HTTPS URL Twilio calls, e.g. your ngrok URL (no trailing slash) |
 | `TWILIO_NIGHT_TEMPLATE_SID` | later | Content SID of an approved template, used when the 24h window has closed |
 | `TWILIO_MORNING_TEMPLATE_SID` | optional | same idea for the morning message |
@@ -193,8 +199,9 @@ internal/clock/     "today" in your timezone (frozen in tests)
 internal/commands/  list, tomorrow, add, done, remove, help + display numbers
 internal/format/    every message the bot sends
 internal/bot/       routes a message: quick command -> parser -> reply
+internal/parser/    Claude call (structured outputs), validation, clarifying questions
 internal/webhook/   Twilio webhook, signature check, number allowlist
-internal/…          parser, messaging, webhook, scheduler (in progress)
+internal/…          messaging, scheduler (in progress)
 docs/SPEC.md        the original product spec
 ```
 
@@ -207,7 +214,7 @@ Run the tests with `go test ./...`.
 - [x] Config loading, SQLite store, `denly check`
 - [x] Quick commands + message formatting
 - [x] Twilio webhook (signature check, number allowlist) + `simulate`
-- [ ] Claude parser for free-text plans, with clarifying questions
+- [x] Claude parser for free-text plans, with clarifying questions
 - [ ] `send_message()` with 24h-window / template fallback
 - [ ] Scheduler: morning, night, weekly recap, recurring tasks, quiet dates + `trigger`
 

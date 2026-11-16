@@ -20,6 +20,7 @@ import (
 	"denly/internal/commands"
 	"denly/internal/config"
 	"denly/internal/format"
+	"denly/internal/parser"
 	"denly/internal/store"
 	"denly/internal/webhook"
 )
@@ -197,8 +198,26 @@ func newApp(cfg *config.Config) (*app, error) {
 	}
 	f := format.New(cfg.Settings)
 	cmd := &commands.Handler{St: st, Clk: clk, F: f, CarryOver: cfg.CarryOver()}
-	// Parser (phase 4) plugs in as bot.Parser.
-	return &app{cfg: cfg, clk: clk, st: st, f: f, cmd: cmd, bot: &bot.Bot{Cmd: cmd, F: f}}, nil
+	b := &bot.Bot{Cmd: cmd, F: f}
+	if p := newParser(cfg, st, clk, cmd, f); p != nil {
+		b.Parser = p
+	} else {
+		slog.Warn("ANTHROPIC_API_KEY / ANTHROPIC_MODEL not set: free-text messages are off, quick commands still work")
+	}
+	return &app{cfg: cfg, clk: clk, st: st, f: f, cmd: cmd, bot: b}, nil
+}
+
+// newParser returns nil when Anthropic isn't configured.
+func newParser(cfg *config.Config, st *store.Store, clk *clock.Clock, cmd *commands.Handler, f *format.Formatter) *parser.Parser {
+	if cfg.Env.AnthropicAPIKey == "" || cfg.Env.AnthropicModel == "" {
+		return nil
+	}
+	return &parser.Parser{
+		St: st, Clk: clk, Cmd: cmd, F: f,
+		LLM:         parser.NewClaude(cfg.Env.AnthropicAPIKey, cfg.Env.AnthropicModel),
+		Personality: cfg.Settings.Personality,
+		Log:         slog.Default(),
+	}
 }
 
 // cmdSimulate handles one message as if the owner had texted it.

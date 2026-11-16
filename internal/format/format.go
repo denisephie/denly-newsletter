@@ -173,3 +173,21 @@ func (f *Formatter) Oops() string {
 func (f *Formatter) NoParser() string {
 	return `i can't understand free text right now, but these work: list, tomorrow, add <task>, done <n>, remove <n>, help`
 }
+
+// ---- parser replies ----
+
+func (f *Formatter) Rephrase() string { return "didn't quite get that, can you rephrase?" }
+
+// ThinkingFailed is used when Claude can't be reached.
+func (f *Formatter) ThinkingFailed() string {
+	return "my brain's offline for a sec (╥﹏╥) quick commands still work: list, add <task>, done <n>"
+}
+
+func (f *Formatter) ActionAdded(text string, date time.Time) string {
+	return fmt.Sprintf("+ %s (%s)", text, DayLabel(date))
+}
+func (f *Formatter) ActionDone(text string) string    { return "✓ " + text }
+func (f *Formatter) ActionRemoved(text string) string { return "✗ " + text }
+func (f *Formatter) ActionMoved(text string, date time.Time) string {
+	return fmt.Sprintf("→ %s moved to %s", text, DayLabel(date))
+}
