@@ -74,7 +74,7 @@ No C compiler needed; the SQLite driver is pure Go.
 ## Quick start (local, no accounts needed)
 
 ```bash
-git clone <this-repo-url> denly-newsletter
+git clone https://github.com/denisephie/denly-newsletter.git
 cd denly-newsletter
 
 go build -o denly ./cmd/denly
