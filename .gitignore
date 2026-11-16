@@ -1,0 +1,10 @@
+.env
+data/
+/denly
+*.db
+*.db-wal
+*.db-shm
+
+# local AI agent instructions
+CLAUDE.md
+AGENTS.md

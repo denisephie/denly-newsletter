@@ -1,0 +1,46 @@
+# Denly Newsletter: personal settings.
+# Every key is optional; deleting a line falls back to the default shown.
+
+timezone: Asia/Singapore          # IANA name, e.g. Asia/Singapore, Europe/London
+morning_time: "09:00"             # 24h HH:MM, in `timezone`
+night_time: "21:00"
+recap_time: "20:30"               # weekly recap, Sundays. default = night_time minus 30 min
+
+bot_name: Denly Newsletter
+user_name: Depi                   # leave empty to not use a name
+
+personality: warm, lowercase, ascii emojis
+
+emojis:
+  morning: "☀️"
+  night: "🌙"
+
+morning_greetings:
+  - "morning! here's your denly newsletter for today:"
+  - "good morning~ today's lineup:"
+  - "rise and shine! here's what's on today:"
+
+night_prompts:
+  - "it's late~ what's the plan for tomorrow?\njust tell me what's due and i'll sort it out for you!"
+  - "winding down? tell me what's happening tomorrow and i'll set it up~"
+
+nudges:
+  - "reply \"done <task number>\" when you finish something! have a good day ahead~"
+  - "one thing at a time, you got this (｡•̀ᴗ-)✧"
+  - "reply \"done <n>\" as you go~ proud of you already"
+
+carry_over: true                  # unfinished tasks roll over to the next day
+
+weekends: same                    # same | skip_morning | later_morning
+weekend_morning_time: "10:00"     # used when weekends: later_morning
+
+# Optional: tasks auto-added on matching days (mon tue wed thu fri sat sun)
+recurring: []
+#  - text: gym
+#    days: [mon, wed, fri]
+#  - text: water plants
+#    days: [sun]
+
+# Optional: dates (YYYY-MM-DD) when the bot stays silent
+quiet_dates: []
+#  - "2026-12-25"
