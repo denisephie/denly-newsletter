@@ -22,7 +22,7 @@ reply "done <task number>" when you finish something! have a good day ahead~
 
 It's built for **one person**: no accounts, no dashboard, no multi-user anything. It's one Go binary and one SQLite file, and you can tweak everything in a YAML file.
 
-> **Status: work in progress.** Config loading, the database and `denly check` work today. The commands, webhook, LLM parser, messaging and scheduler are being built; see [Roadmap](#roadmap).
+> **Status: work in progress.** Config, the database and the quick commands work today (try them with `simulate`). The webhook, LLM parser, messaging and scheduler are being built; see [Roadmap](#roadmap).
 
 ---
 
@@ -82,6 +82,10 @@ go test ./...
 
 cp .env.example .env              # fill in later; dry-run works without it
 ./denly --dry-run check           # shows your settings + which keys are still missing
+
+./denly --dry-run simulate "add buy milk"     # pretend you texted the bot
+./denly --dry-run simulate "list"
+./denly --dry-run simulate "done 1"
 ```
 
 `--dry-run` (or `DRY_RUN=true` in `.env`) prints every outgoing message to the console instead of sending it, so you can try everything without Twilio credits.
@@ -89,8 +93,7 @@ cp .env.example .env              # fill in later; dry-run works without it
 Once the remaining phases land, you'll also be able to do:
 
 ```bash
-./denly --dry-run simulate "add buy milk"     # pretend you texted the bot
-./denly --dry-run simulate "list"
+./denly --dry-run simulate "tomorrow: gym, call mum"   # free text, via Claude
 ./denly --dry-run trigger morning --force     # send the morning message now
 ./denly serve                                 # the real thing: webhook + scheduler
 ```
@@ -139,6 +142,8 @@ Two files, both in the project root:
 | `morning_greetings` | 1 default | list; rotates daily |
 | `night_prompts` | 1 default | list; rotates daily |
 | `nudges` | 1 default | closing line of the morning message; rotates daily |
+
+Greetings, prompts and nudges can include `{name}` (your `user_name`) and `{bot}` (`bot_name`).
 | `carry_over` | `true` | roll unfinished tasks to the next day |
 | `weekends` | `same` | `same`, `skip_morning` or `later_morning` |
 | `weekend_morning_time` | `10:00` | used with `later_morning` |
@@ -183,7 +188,9 @@ cmd/denly/          CLI entrypoint (check, serve, simulate, trigger)
 internal/config/    .env + config.yaml loading, defaults, validation
 internal/store/     SQLite schema, tasks, key/value state
 internal/clock/     "today" in your timezone (frozen in tests)
-internal/…          commands, format, parser, messaging, webhook, scheduler (in progress)
+internal/commands/  list, tomorrow, add, done, remove, help + display numbers
+internal/format/    every message the bot sends
+internal/…          parser, messaging, webhook, scheduler (in progress)
 docs/SPEC.md        the original product spec
 ```
 
@@ -194,7 +201,7 @@ Run the tests with `go test ./...`.
 ## Roadmap
 
 - [x] Config loading, SQLite store, `denly check`
-- [ ] Quick commands + message formatting
+- [x] Quick commands + message formatting
 - [ ] Twilio webhook (signature check, number allowlist) + `simulate`
 - [ ] Claude parser for free-text plans, with clarifying questions
 - [ ] `send_message()` with 24h-window / template fallback

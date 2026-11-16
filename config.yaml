@@ -15,9 +15,10 @@ emojis:
   morning: "☀️"
   night: "🌙"
 
+# Greetings, prompts and nudges can use {name} (user_name) and {bot} (bot_name).
 morning_greetings:
-  - "morning! here's your denly newsletter for today:"
-  - "good morning~ today's lineup:"
+  - "morning {name}! here's your denly newsletter for today:"
+  - "good morning {name}~ today's lineup:"
   - "rise and shine! here's what's on today:"
 
 night_prompts:

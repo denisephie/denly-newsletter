@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	"denly/internal/clock"
+	"denly/internal/commands"
 	"denly/internal/config"
+	"denly/internal/format"
 	"denly/internal/store"
 )
 
@@ -92,7 +94,7 @@ func run(args []string, out io.Writer) error {
 		if len(rest) == 0 || strings.TrimSpace(strings.Join(rest, " ")) == "" {
 			return errors.New(`usage: denly simulate "<message>"`)
 		}
-		return notYet("simulate", "phase 3")
+		return cmdSimulate(cfg, strings.Join(rest, " "), out)
 	case "trigger":
 		job, force := parseTrigger(rest)
 		switch job {
@@ -167,4 +169,32 @@ func cmdCheck(cfg *config.Config, out io.Writer) error {
 		}
 	}
 	return nil
+}
+
+// cmdSimulate handles one message as if the owner had texted it.
+// (Phase 3 moves the routing into internal/bot; free text needs the phase 4 parser.)
+func cmdSimulate(cfg *config.Config, msg string, out io.Writer) error {
+	clk := clock.New(cfg.Loc)
+	db, err := store.Open(cfg.Env.DBPath, clk.Now)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	if err := db.TouchInbound(); err != nil {
+		return err
+	}
+	h := &commands.Handler{St: db, Clk: clk, F: format.New(cfg.Settings), CarryOver: cfg.CarryOver()}
+	reply, handled, err := h.Handle(msg)
+	if err != nil {
+		return err
+	}
+	if !handled {
+		reply = "(free-text messages need the Claude parser, coming in phase 4. try: list, add <task>, done <n>, help)"
+	}
+	fmt.Fprintf(out, "you > %s\n\n%s\n", msg, indent(reply))
+	return nil
+}
+
+func indent(s string) string {
+	return "bot > " + strings.ReplaceAll(s, "\n", "\n      ")
 }
