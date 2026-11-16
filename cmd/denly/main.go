@@ -2,18 +2,26 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
+	"denly/internal/bot"
 	"denly/internal/clock"
 	"denly/internal/commands"
 	"denly/internal/config"
 	"denly/internal/format"
 	"denly/internal/store"
+	"denly/internal/webhook"
 )
 
 const usage = `denly: a tiny WhatsApp to-do bot
@@ -89,7 +97,7 @@ func run(args []string, out io.Writer) error {
 	case "check":
 		return cmdCheck(cfg, out)
 	case "serve":
-		return notYet("serve", "phases 3–6")
+		return cmdServe(cfg, out)
 	case "simulate":
 		if len(rest) == 0 || strings.TrimSpace(strings.Join(rest, " ")) == "" {
 			return errors.New(`usage: denly simulate "<message>"`)
@@ -171,30 +179,115 @@ func cmdCheck(cfg *config.Config, out io.Writer) error {
 	return nil
 }
 
-// cmdSimulate handles one message as if the owner had texted it.
-// (Phase 3 moves the routing into internal/bot; free text needs the phase 4 parser.)
-func cmdSimulate(cfg *config.Config, msg string, out io.Writer) error {
+// app holds the wired-up pieces shared by serve / simulate / trigger.
+type app struct {
+	cfg *config.Config
+	clk *clock.Clock
+	st  *store.Store
+	f   *format.Formatter
+	cmd *commands.Handler
+	bot *bot.Bot
+}
+
+func newApp(cfg *config.Config) (*app, error) {
 	clk := clock.New(cfg.Loc)
-	db, err := store.Open(cfg.Env.DBPath, clk.Now)
+	st, err := store.Open(cfg.Env.DBPath, clk.Now)
+	if err != nil {
+		return nil, err
+	}
+	f := format.New(cfg.Settings)
+	cmd := &commands.Handler{St: st, Clk: clk, F: f, CarryOver: cfg.CarryOver()}
+	// Parser (phase 4) plugs in as bot.Parser.
+	return &app{cfg: cfg, clk: clk, st: st, f: f, cmd: cmd, bot: &bot.Bot{Cmd: cmd, F: f}}, nil
+}
+
+// cmdSimulate handles one message as if the owner had texted it.
+func cmdSimulate(cfg *config.Config, msg string, out io.Writer) error {
+	a, err := newApp(cfg)
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-	if err := db.TouchInbound(); err != nil {
+	defer a.st.Close()
+	if err := a.st.TouchInbound(); err != nil {
 		return err
 	}
-	h := &commands.Handler{St: db, Clk: clk, F: format.New(cfg.Settings), CarryOver: cfg.CarryOver()}
-	reply, handled, err := h.Handle(msg)
+	reply, err := a.bot.HandleInbound(msg)
 	if err != nil {
 		return err
 	}
-	if !handled {
-		reply = "(free-text messages need the Claude parser, coming in phase 4. try: list, add <task>, done <n>, help)"
-	}
-	fmt.Fprintf(out, "you > %s\n\n%s\n", msg, indent(reply))
+	fmt.Fprintf(out, "you > %s\n\n%s\n", msg, indent("bot > ", reply))
 	return nil
 }
 
-func indent(s string) string {
-	return "bot > " + strings.ReplaceAll(s, "\n", "\n      ")
+func cmdServe(cfg *config.Config, out io.Writer) error {
+	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	if !cfg.Env.DryRun {
+		if missing := cfg.MissingRequired(); len(missing) > 0 {
+			return fmt.Errorf("missing required settings in .env: %s (or run with --dry-run)", strings.Join(missing, ", "))
+		}
+		return notYet("sending real WhatsApp messages", "phase 5; use --dry-run for now")
+	}
+	if cfg.Env.MyNumber == "" || strings.Contains(cfg.Env.MyNumber, "XXXX") {
+		log.Warn("MY_WHATSAPP_NUMBER is not set: every message will be ignored")
+	}
+	if cfg.Env.SkipSignature {
+		log.Warn("SKIP_SIGNATURE=true: webhook signatures are NOT checked (dry-run only)")
+	}
+
+	a, err := newApp(cfg)
+	if err != nil {
+		return err
+	}
+	defer a.st.Close()
+
+	wh := &webhook.Handler{
+		AuthToken:     cfg.Env.TwilioAuthToken,
+		PublicBaseURL: cfg.Env.PublicBaseURL,
+		MyNumber:      cfg.Env.MyNumber,
+		SkipSignature: cfg.Env.DryRun && cfg.Env.SkipSignature,
+		Store:         a.st,
+		Bot:           a.bot,
+		F:             a.f,
+		Send:          consoleSend(out),
+		Log:           log,
+	}
+	srv := &http.Server{
+		Addr:              ":" + cfg.Env.Port,
+		Handler:           wh.Routes(),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	errc := make(chan error, 1)
+	go func() { errc <- srv.ListenAndServe() }()
+	log.Info("denly listening", "addr", srv.Addr, "webhook", webhook.Path, "dry_run", cfg.Env.DryRun)
+
+	select {
+	case err := <-errc:
+		return err
+	case <-ctx.Done():
+	}
+	log.Info("shutting down")
+	shutCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	err = srv.Shutdown(shutCtx)
+	wh.Wait() // let in-flight replies finish
+	return err
+}
+
+// consoleSend prints outgoing messages instead of sending them (dry-run).
+// Phase 5 replaces this with messaging.SendMessage.
+func consoleSend(out io.Writer) func(string) error {
+	return func(body string) error {
+		fmt.Fprintf(out, "\n%s\n", indent("[dry-run] to you > ", body))
+		return nil
+	}
+}
+
+func indent(prefix, s string) string {
+	pad := strings.Repeat(" ", len([]rune(prefix)))
+	return prefix + strings.ReplaceAll(s, "\n", "\n"+pad)
 }

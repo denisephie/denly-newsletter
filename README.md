@@ -22,7 +22,7 @@ reply "done <task number>" when you finish something! have a good day ahead~
 
 It's built for **one person**: no accounts, no dashboard, no multi-user anything. It's one Go binary and one SQLite file, and you can tweak everything in a YAML file.
 
-> **Status: work in progress.** Config, the database and the quick commands work today (try them with `simulate`). The webhook, LLM parser, messaging and scheduler are being built; see [Roadmap](#roadmap).
+> **Status: work in progress.** Config, the database, the quick commands and the Twilio webhook work today (in `--dry-run`, replies print to the console). The LLM parser, real sending and the scheduler are being built; see [Roadmap](#roadmap).
 
 ---
 
@@ -97,6 +97,8 @@ Once the remaining phases land, you'll also be able to do:
 ./denly --dry-run trigger morning --force     # send the morning message now
 ./denly serve                                 # the real thing: webhook + scheduler
 ```
+
+`./denly --dry-run serve` already runs the webhook today; replies are printed to the console instead of sent.
 
 ---
 
@@ -190,6 +192,8 @@ internal/store/     SQLite schema, tasks, key/value state
 internal/clock/     "today" in your timezone (frozen in tests)
 internal/commands/  list, tomorrow, add, done, remove, help + display numbers
 internal/format/    every message the bot sends
+internal/bot/       routes a message: quick command -> parser -> reply
+internal/webhook/   Twilio webhook, signature check, number allowlist
 internal/…          parser, messaging, webhook, scheduler (in progress)
 docs/SPEC.md        the original product spec
 ```
@@ -202,7 +206,7 @@ Run the tests with `go test ./...`.
 
 - [x] Config loading, SQLite store, `denly check`
 - [x] Quick commands + message formatting
-- [ ] Twilio webhook (signature check, number allowlist) + `simulate`
+- [x] Twilio webhook (signature check, number allowlist) + `simulate`
 - [ ] Claude parser for free-text plans, with clarifying questions
 - [ ] `send_message()` with 24h-window / template fallback
 - [ ] Scheduler: morning, night, weekly recap, recurring tasks, quiet dates + `trigger`

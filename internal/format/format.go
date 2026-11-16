@@ -160,3 +160,16 @@ func (f *Formatter) NoListYet() string {
 }
 
 func (f *Formatter) AllClear() string { return "all clear! (ﾉ◕ヮ◕)ﾉ*:・ﾟ✧" }
+
+// ---- bot / webhook replies ----
+
+func (f *Formatter) TextOnly() string { return "text only for now~ (no voice notes or pictures yet)" }
+
+func (f *Formatter) Oops() string {
+	return "oops, something went wrong on my side (╥﹏╥) try again in a bit?"
+}
+
+// NoParser is used when free text arrives but no Claude parser is configured.
+func (f *Formatter) NoParser() string {
+	return `i can't understand free text right now, but these work: list, tomorrow, add <task>, done <n>, remove <n>, help`
+}
