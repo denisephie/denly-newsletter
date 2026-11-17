@@ -17,21 +17,12 @@ import (
 
 // Env holds secrets and deployment settings from .env / environment.
 type Env struct {
-	TwilioAccountSID   string
-	TwilioAuthToken    string
-	TwilioFrom         string
-	NightTemplateSID   string
-	MorningTemplateSID string
-	MyNumber           string
-	TelegramToken      string
-	TelegramChatID     string
-	AnthropicAPIKey    string
-	AnthropicModel     string
-	PublicBaseURL      string
-	DBPath             string
-	Port               string
-	DryRun             bool
-	SkipSignature      bool
+	TelegramToken   string
+	TelegramChatID  string
+	AnthropicAPIKey string
+	AnthropicModel  string
+	DBPath          string
+	DryRun          bool
 }
 
 type Emojis struct {
@@ -128,30 +119,15 @@ func Load(envPath, yamlPath string) (*Config, error) {
 	}
 
 	cfg := &Config{Env: Env{
-		TwilioAccountSID:   get("TWILIO_ACCOUNT_SID"),
-		TwilioAuthToken:    get("TWILIO_AUTH_TOKEN"),
-		TwilioFrom:         get("TWILIO_WHATSAPP_FROM"),
-		NightTemplateSID:   get("TWILIO_NIGHT_TEMPLATE_SID"),
-		MorningTemplateSID: get("TWILIO_MORNING_TEMPLATE_SID"),
-		MyNumber:           get("MY_WHATSAPP_NUMBER"),
-		TelegramToken:      get("TELEGRAM_BOT_TOKEN"),
-		TelegramChatID:     get("TELEGRAM_CHAT_ID"),
-		AnthropicAPIKey:    get("ANTHROPIC_API_KEY"),
-		AnthropicModel:     get("ANTHROPIC_MODEL"),
-		PublicBaseURL:      strings.TrimRight(get("PUBLIC_BASE_URL"), "/"),
-		DBPath:             get("DB_PATH"),
-		Port:               get("PORT"),
-		DryRun:             isTrue(get("DRY_RUN")),
-		SkipSignature:      isTrue(get("SKIP_SIGNATURE")),
+		TelegramToken:   get("TELEGRAM_BOT_TOKEN"),
+		TelegramChatID:  get("TELEGRAM_CHAT_ID"),
+		AnthropicAPIKey: get("ANTHROPIC_API_KEY"),
+		AnthropicModel:  get("ANTHROPIC_MODEL"),
+		DBPath:          get("DB_PATH"),
+		DryRun:          isTrue(get("DRY_RUN")),
 	}}
 	if cfg.Env.DBPath == "" {
 		cfg.Env.DBPath = "./data/todo.db"
-	}
-	if cfg.Env.Port == "" {
-		cfg.Env.Port = "8000"
-	}
-	if cfg.Env.TwilioFrom == "" {
-		cfg.Env.TwilioFrom = "whatsapp:+14155238886"
 	}
 
 	cfg.Settings, err = readSettings(yamlPath)
@@ -165,7 +141,7 @@ func Load(envPath, yamlPath string) (*Config, error) {
 }
 
 // MissingRequired lists required .env keys that are empty or still placeholders.
-// The bot can't talk to Twilio/Anthropic until these are filled (TODO(me)).
+// The bot can't talk to Telegram/Anthropic until these are filled.
 func (c *Config) MissingRequired() []string {
 	var missing []string
 	check := func(key, val string) {
@@ -179,9 +155,6 @@ func (c *Config) MissingRequired() []string {
 	check("ANTHROPIC_MODEL", c.Env.AnthropicModel)
 	return missing
 }
-
-// MissingOptional lists recommended keys that are empty (none for Telegram).
-func (c *Config) MissingOptional() []string { return nil }
 
 func readSettings(path string) (Settings, error) {
 	s := Defaults()

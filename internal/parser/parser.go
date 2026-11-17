@@ -266,7 +266,7 @@ func (p *Parser) systemPrompt() string {
 	if tone == "" {
 		tone = "warm, lowercase"
 	}
-	return `You manage one person's personal to-do list. They text you on WhatsApp; you turn each message into actions on the list.
+	return `You manage one person's personal to-do list. They message you on Telegram; you turn each message into actions on the list.
 
 Reply with JSON only, matching the schema:
 - {"type":"add","text":...,"date":"YYYY-MM-DD"}: a new task. Keep the text short, in their words, without the date words ("finish the report", not "tomorrow finish the report"). A list like "tomorrow: gym, call mum, finish report" is one add per item.

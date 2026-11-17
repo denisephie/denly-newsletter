@@ -1,5 +1,7 @@
 # Daily To-Do WhatsApp Bot
 
+> **Note:** this is the original spec. The bot now runs on **Telegram** (long polling) instead of WhatsApp/Twilio, so the WhatsApp rules, Twilio setup, templates and 24-hour window below no longer apply. See the README for how it works today.
+
 A tiny personal bot that lives in my WhatsApp:
 
 - **Every morning** it sends me today's to-do list.

@@ -33,7 +33,7 @@ func TestDefaultsWhenFilesMissing(t *testing.T) {
 	if !cfg.CarryOver() || s.Weekends != "same" || s.BotName != "Denly Newsletter" {
 		t.Fatalf("unexpected defaults: %+v", s)
 	}
-	if cfg.Env.DBPath != "./data/todo.db" || cfg.Env.Port != "8000" {
+	if cfg.Env.DBPath != "./data/todo.db" {
 		t.Fatalf("unexpected env defaults: %+v", cfg.Env)
 	}
 	if cfg.Loc.String() != "Asia/Singapore" {
@@ -56,11 +56,14 @@ func TestRepoEnvExampleParses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := m["TWILIO_WHATSAPP_FROM"]; got != "whatsapp:+14155238886" {
-		t.Fatalf("inline comment not stripped: %q", got)
-	}
-	if got := m["TWILIO_ACCOUNT_SID"]; got != "" {
-		t.Fatalf("comment-only value should be empty, got %q", got)
+	for _, k := range []string{"TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL"} {
+		got, ok := m[k]
+		if !ok {
+			t.Fatalf("%s missing from .env.example", k)
+		}
+		if got != "" {
+			t.Fatalf("comment-only value for %s should be empty, got %q", k, got)
+		}
 	}
 }
 
@@ -125,7 +128,7 @@ func TestDotEnvParsingAndOSOverride(t *testing.T) {
 	dir := t.TempDir()
 	e := write(t, dir, ".env", `
 # comment
-TWILIO_ACCOUNT_SID=AC123   # inline comment
+TELEGRAM_BOT_TOKEN=tok123   # inline comment
 export ANTHROPIC_MODEL="model # with hash"
 TELEGRAM_CHAT_ID=XXXX
 DRY_RUN=TRUE
@@ -136,8 +139,8 @@ DB_PATH=./from-file.db
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Env.TwilioAccountSID != "AC123" {
-		t.Fatalf("sid = %q", cfg.Env.TwilioAccountSID)
+	if cfg.Env.TelegramToken != "tok123" {
+		t.Fatalf("token = %q", cfg.Env.TelegramToken)
 	}
 	if cfg.Env.AnthropicModel != "model # with hash" {
 		t.Fatalf("quoted value = %q", cfg.Env.AnthropicModel)

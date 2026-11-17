@@ -19,6 +19,7 @@ import (
 	"denly/internal/config"
 	"denly/internal/format"
 	"denly/internal/parser"
+	"denly/internal/scheduler"
 	"denly/internal/store"
 	"denly/internal/telegram"
 )
@@ -109,8 +110,7 @@ func run(args []string, out io.Writer) error {
 		default:
 			return errors.New("usage: denly trigger morning|night|recap [--force]")
 		}
-		_ = force
-		return notYet("trigger "+job, "phase 6")
+		return cmdTrigger(cfg, job, force, out)
 	}
 	return nil
 }
@@ -128,10 +128,6 @@ func parseTrigger(args []string) (job string, force bool) {
 		}
 	}
 	return job, force
-}
-
-func notYet(what, phase string) error {
-	return fmt.Errorf("%s isn't built yet (coming in %s)", what, phase)
 }
 
 func cmdCheck(cfg *config.Config, out io.Writer) error {
@@ -164,13 +160,7 @@ func cmdCheck(cfg *config.Config, out io.Writer) error {
 	fmt.Fprintf(out, "  dry run      %v\n", cfg.Env.DryRun)
 
 	if missing := cfg.MissingRequired(); len(missing) > 0 {
-		fmt.Fprintf(out, "\nTODO(me), required to send/receive for real (fine to skip in --dry-run):\n")
-		for _, k := range missing {
-			fmt.Fprintf(out, "  - %s\n", k)
-		}
-	}
-	if missing := cfg.MissingOptional(); len(missing) > 0 {
-		fmt.Fprintf(out, "\nTODO(me), optional (needed once the 24h window closes / real sender):\n")
+		fmt.Fprintf(out, "\nstill empty in .env (needed to run for real; fine to skip with --dry-run):\n")
 		for _, k := range missing {
 			fmt.Fprintf(out, "  - %s\n", k)
 		}
@@ -272,6 +262,10 @@ func cmdServe(cfg *config.Config, out io.Writer) error {
 		log.Warn("TELEGRAM_CHAT_ID is empty: message the bot once and its chat id will be logged", "bot", "@"+username)
 	}
 	log.Info("denly listening on telegram", "bot", "@"+username)
+	if cfg.Env.TelegramChatID != "" {
+		sch := a.scheduler(tg.Send, log)
+		go sch.Run(ctx)
+	}
 	err = tg.Run(ctx)
 	log.Info("shutting down")
 	return err
@@ -280,4 +274,36 @@ func cmdServe(cfg *config.Config, out io.Writer) error {
 func indent(prefix, s string) string {
 	pad := strings.Repeat(" ", len([]rune(prefix)))
 	return prefix + strings.ReplaceAll(s, "\n", "\n"+pad)
+}
+
+func (a *app) scheduler(send func(string) error, log *slog.Logger) *scheduler.Scheduler {
+	return &scheduler.Scheduler{Cfg: a.cfg, Clk: a.clk, St: a.st, Cmd: a.cmd, F: a.f, Send: send, Log: log}
+}
+
+// cmdTrigger runs one scheduled job now. With --dry-run it prints instead of sending.
+func cmdTrigger(cfg *config.Config, job string, force bool, out io.Writer) error {
+	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	a, err := newApp(cfg)
+	if err != nil {
+		return err
+	}
+	defer a.st.Close()
+
+	send := consoleSend(out)
+	if !cfg.Env.DryRun {
+		if cfg.Env.TelegramToken == "" || cfg.Env.TelegramChatID == "" {
+			return errors.New("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set (or use --dry-run)")
+		}
+		tg := &telegram.Client{Token: cfg.Env.TelegramToken, ChatID: cfg.Env.TelegramChatID, Log: log}
+		send = tg.Send
+	}
+	return a.scheduler(send, log).Trigger(job, force)
+}
+
+// consoleSend prints outgoing messages instead of sending them (dry-run).
+func consoleSend(out io.Writer) func(string) error {
+	return func(body string) error {
+		fmt.Fprintf(out, "\n%s\n", indent("[dry-run] to you > ", body))
+		return nil
+	}
 }

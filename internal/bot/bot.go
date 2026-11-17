@@ -1,5 +1,5 @@
 // Package bot routes one inbound message to a reply. It's shared by the
-// webhook (real WhatsApp messages) and `denly simulate` (local testing).
+// Telegram client (real messages) and `denly simulate` (local testing).
 package bot
 
 import (

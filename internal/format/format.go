@@ -161,7 +161,7 @@ func (f *Formatter) NoListYet() string {
 
 func (f *Formatter) AllClear() string { return "all clear! (ﾉ◕ヮ◕)ﾉ*:・ﾟ✧" }
 
-// ---- bot / webhook replies ----
+// ---- bot replies ----
 
 func (f *Formatter) TextOnly() string { return "text only for now~ (no voice notes or pictures yet)" }
 
@@ -190,4 +190,25 @@ func (f *Formatter) ActionDone(text string) string    { return "✓ " + text }
 func (f *Formatter) ActionRemoved(text string) string { return "✗ " + text }
 func (f *Formatter) ActionMoved(text string, date time.Time) string {
 	return fmt.Sprintf("→ %s moved to %s", text, DayLabel(date))
+}
+
+// Recap is the Sunday summary of what got done this week.
+func (f *Formatter) Recap(done []store.Task, stillOpen int) string {
+	var b strings.Builder
+	if len(done) == 0 {
+		b.WriteString("weekly recap: nothing ticked off this week, and that's okay~ fresh start tomorrow!")
+	} else {
+		fmt.Fprintf(&b, "weekly recap: you finished %d thing", len(done))
+		if len(done) != 1 {
+			b.WriteString("s")
+		}
+		b.WriteString(" this week! (ﾉ◕ヮ◕)ﾉ*:・ﾟ✧\n\n")
+		for _, t := range done {
+			b.WriteString("✓ " + t.Text + "\n")
+		}
+	}
+	if stillOpen > 0 {
+		fmt.Fprintf(&b, "\nstill open: %d", stillOpen)
+	}
+	return strings.TrimSpace(f.personalize(b.String()))
 }
