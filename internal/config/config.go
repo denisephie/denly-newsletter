@@ -23,6 +23,8 @@ type Env struct {
 	NightTemplateSID   string
 	MorningTemplateSID string
 	MyNumber           string
+	TelegramToken      string
+	TelegramChatID     string
 	AnthropicAPIKey    string
 	AnthropicModel     string
 	PublicBaseURL      string
@@ -132,6 +134,8 @@ func Load(envPath, yamlPath string) (*Config, error) {
 		NightTemplateSID:   get("TWILIO_NIGHT_TEMPLATE_SID"),
 		MorningTemplateSID: get("TWILIO_MORNING_TEMPLATE_SID"),
 		MyNumber:           get("MY_WHATSAPP_NUMBER"),
+		TelegramToken:      get("TELEGRAM_BOT_TOKEN"),
+		TelegramChatID:     get("TELEGRAM_CHAT_ID"),
 		AnthropicAPIKey:    get("ANTHROPIC_API_KEY"),
 		AnthropicModel:     get("ANTHROPIC_MODEL"),
 		PublicBaseURL:      strings.TrimRight(get("PUBLIC_BASE_URL"), "/"),
@@ -169,27 +173,15 @@ func (c *Config) MissingRequired() []string {
 			missing = append(missing, key)
 		}
 	}
-	check("TWILIO_ACCOUNT_SID", c.Env.TwilioAccountSID)
-	check("TWILIO_AUTH_TOKEN", c.Env.TwilioAuthToken)
-	check("TWILIO_WHATSAPP_FROM", c.Env.TwilioFrom)
-	check("MY_WHATSAPP_NUMBER", c.Env.MyNumber)
+	check("TELEGRAM_BOT_TOKEN", c.Env.TelegramToken)
+	check("TELEGRAM_CHAT_ID", c.Env.TelegramChatID)
 	check("ANTHROPIC_API_KEY", c.Env.AnthropicAPIKey)
 	check("ANTHROPIC_MODEL", c.Env.AnthropicModel)
-	check("PUBLIC_BASE_URL", c.Env.PublicBaseURL)
 	return missing
 }
 
-// MissingOptional lists recommended keys that are empty (bot works without them).
-func (c *Config) MissingOptional() []string {
-	var missing []string
-	if c.Env.NightTemplateSID == "" {
-		missing = append(missing, "TWILIO_NIGHT_TEMPLATE_SID")
-	}
-	if c.Env.MorningTemplateSID == "" {
-		missing = append(missing, "TWILIO_MORNING_TEMPLATE_SID")
-	}
-	return missing
-}
+// MissingOptional lists recommended keys that are empty (none for Telegram).
+func (c *Config) MissingOptional() []string { return nil }
 
 func readSettings(path string) (Settings, error) {
 	s := Defaults()

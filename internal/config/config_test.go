@@ -127,7 +127,7 @@ func TestDotEnvParsingAndOSOverride(t *testing.T) {
 # comment
 TWILIO_ACCOUNT_SID=AC123   # inline comment
 export ANTHROPIC_MODEL="model # with hash"
-MY_WHATSAPP_NUMBER=whatsapp:+65XXXXXXXX
+TELEGRAM_CHAT_ID=XXXX
 DRY_RUN=TRUE
 DB_PATH=./from-file.db
 `)
@@ -149,10 +149,10 @@ DB_PATH=./from-file.db
 		t.Fatalf("OS env should override file, got %q", cfg.Env.DBPath)
 	}
 	missing := cfg.MissingRequired()
-	if !slices.Contains(missing, "MY_WHATSAPP_NUMBER") {
+	if !slices.Contains(missing, "TELEGRAM_CHAT_ID") {
 		t.Fatalf("placeholder number should count as missing: %v", missing)
 	}
-	if slices.Contains(missing, "TWILIO_ACCOUNT_SID") || slices.Contains(missing, "TWILIO_WHATSAPP_FROM") {
+	if slices.Contains(missing, "ANTHROPIC_MODEL") {
 		t.Fatalf("filled keys reported missing: %v", missing)
 	}
 }

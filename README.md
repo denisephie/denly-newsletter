@@ -160,15 +160,16 @@ Greetings, prompts and nudges can include `{name}` (your `user_name`) and `{bot}
 
 ---
 
-## Connecting WhatsApp (Twilio)
+## Connecting Telegram
 
-1. **Join the sandbox.** In the Twilio console go to *Messaging → Try it out → Send a WhatsApp message* and text `join <your-sandbox-code>` to the sandbox number from your phone.
-   Sandbox sessions **expire after 3 days**, so you'll need to re-send the join message. For permanent daily use, register your own WhatsApp sender.
-2. **Expose the server.** Run `./denly serve`, then in another terminal `ngrok http 8000`. Put the `https://…` URL in `.env` as `PUBLIC_BASE_URL` and restart.
-3. **Set the webhook.** In the sandbox settings, set *"When a message comes in"* to `PUBLIC_BASE_URL/webhook/whatsapp`, method **POST**.
+The bot talks to Telegram by long polling, so you don't need ngrok or a public URL.
+
+1. **Create the bot.** In Telegram, open `@BotFather`, send `/newbot`, follow the prompts, and copy the token into `.env` as `TELEGRAM_BOT_TOKEN`.
+2. **Run it.** `./denly serve`, then send your new bot any message.
+3. **Claim it.** With `TELEGRAM_CHAT_ID` empty, the bot answers nobody and logs your chat id. Put it in `.env` as `TELEGRAM_CHAT_ID` and restart. From then on only that chat gets replies.
 4. **Text the bot** `help`.
 
-**About the 24-hour window:** WhatsApp only lets businesses send free-form messages within 24h of your last message. If you haven't texted the bot in ~23h, it sends the night prompt (and optionally the morning message) via an approved **utility template** instead. Create one in Twilio's *Content Template Builder*, get it approved, and put its Content SID in `TWILIO_NIGHT_TEMPLATE_SID`. If no template is set and the window is closed, the bot skips that message and logs a warning.
+(The old Twilio/WhatsApp keys and `internal/webhook` are still in the repo but unused.)
 
 ---
 

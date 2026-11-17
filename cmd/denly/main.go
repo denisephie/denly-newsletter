@@ -1,4 +1,4 @@
-// Command denly is the Denly Newsletter WhatsApp to-do bot.
+// Command denly is the Denly Newsletter Telegram to-do bot.
 package main
 
 import (
@@ -8,12 +8,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"denly/internal/bot"
 	"denly/internal/clock"
@@ -22,17 +20,17 @@ import (
 	"denly/internal/format"
 	"denly/internal/parser"
 	"denly/internal/store"
-	"denly/internal/webhook"
+	"denly/internal/telegram"
 )
 
-const usage = `denly: a tiny WhatsApp to-do bot
+const usage = `denly: a tiny Telegram to-do bot
 
 usage:
   denly [global flags] <command> [args]
 
 commands:
   check                          validate .env + config.yaml, open the DB, list TODO(me) keys
-  serve                          run the webhook + scheduler (the always-on process)
+  serve                          run the Telegram bot + scheduler (the always-on process)
   simulate "<message>"           handle a message as if you'd texted it; prints the reply
   trigger morning|night|recap [--force]
                                  run a scheduled job now (--force ignores "already sent today")
@@ -240,17 +238,13 @@ func cmdSimulate(cfg *config.Config, msg string, out io.Writer) error {
 
 func cmdServe(cfg *config.Config, out io.Writer) error {
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	if cfg.Env.TelegramToken == "" {
+		return errors.New("TELEGRAM_BOT_TOKEN is not set in .env (create a bot with @BotFather)")
+	}
 	if !cfg.Env.DryRun {
 		if missing := cfg.MissingRequired(); len(missing) > 0 {
-			return fmt.Errorf("missing required settings in .env: %s (or run with --dry-run)", strings.Join(missing, ", "))
+			log.Warn("settings still empty", "keys", strings.Join(missing, ", "))
 		}
-		return notYet("sending real WhatsApp messages", "phase 5; use --dry-run for now")
-	}
-	if cfg.Env.MyNumber == "" || strings.Contains(cfg.Env.MyNumber, "XXXX") {
-		log.Warn("MY_WHATSAPP_NUMBER is not set: every message will be ignored")
-	}
-	if cfg.Env.SkipSignature {
-		log.Warn("SKIP_SIGNATURE=true: webhook signatures are NOT checked (dry-run only)")
 	}
 
 	a, err := newApp(cfg)
@@ -259,51 +253,28 @@ func cmdServe(cfg *config.Config, out io.Writer) error {
 	}
 	defer a.st.Close()
 
-	wh := &webhook.Handler{
-		AuthToken:     cfg.Env.TwilioAuthToken,
-		PublicBaseURL: cfg.Env.PublicBaseURL,
-		MyNumber:      cfg.Env.MyNumber,
-		SkipSignature: cfg.Env.DryRun && cfg.Env.SkipSignature,
-		Store:         a.st,
-		Bot:           a.bot,
-		F:             a.f,
-		Send:          consoleSend(out),
-		Log:           log,
+	tg := &telegram.Client{
+		Token:  cfg.Env.TelegramToken,
+		ChatID: cfg.Env.TelegramChatID,
+		Store:  a.st,
+		Bot:    a.bot,
+		F:      a.f,
+		Log:    log,
 	}
-	srv := &http.Server{
-		Addr:              ":" + cfg.Env.Port,
-		Handler:           wh.Routes(),
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      15 * time.Second,
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	errc := make(chan error, 1)
-	go func() { errc <- srv.ListenAndServe() }()
-	log.Info("denly listening", "addr", srv.Addr, "webhook", webhook.Path, "dry_run", cfg.Env.DryRun)
 
-	select {
-	case err := <-errc:
-		return err
-	case <-ctx.Done():
+	username, err := tg.Check(ctx)
+	if err != nil {
+		return fmt.Errorf("telegram token rejected: %w", err)
 	}
+	if cfg.Env.TelegramChatID == "" {
+		log.Warn("TELEGRAM_CHAT_ID is empty: message the bot once and its chat id will be logged", "bot", "@"+username)
+	}
+	log.Info("denly listening on telegram", "bot", "@"+username)
+	err = tg.Run(ctx)
 	log.Info("shutting down")
-	shutCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	err = srv.Shutdown(shutCtx)
-	wh.Wait() // let in-flight replies finish
 	return err
-}
-
-// consoleSend prints outgoing messages instead of sending them (dry-run).
-// Phase 5 replaces this with messaging.SendMessage.
-func consoleSend(out io.Writer) func(string) error {
-	return func(body string) error {
-		fmt.Fprintf(out, "\n%s\n", indent("[dry-run] to you > ", body))
-		return nil
-	}
 }
 
 func indent(prefix, s string) string {
